@@ -1,71 +1,70 @@
 import logging
-import openai
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import os
+from openai import OpenAI
+from dotenv import load_dotenv
 
-# Получаем токен Telegram и API-ключ OpenAI из переменных окружения
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Загружаем переменные окружения из .env файла (если используешь локально)
+load_dotenv()
 
-# Настроим логирование
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+# Настройка логов
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Устанавливаем ключ API OpenAI
-openai.api_key = OPENAI_API_KEY
+# Инициализация OpenAI клиента
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Функция старта
+# Обработчик команды /start
 async def start(update: Update, context):
-    user_name = update.effective_user.first_name
-    welcome_message = f"Привет, {user_name}! Я могу помочь тебе с гаданием на Таро. Нажми на кнопку 'Гадать' и задай свой вопрос!"
-    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(
+        "Привет! Я — бот-гадалка 🔮\nНажми кнопку 'Гадать' или напиши свой вопрос, и я сделаю мистический расклад ✨"
+    )
 
-# Функция обработки команды "Гадать"
+# Обработчик команды /guess
 async def guess(update: Update, context):
     await update.message.reply_text(
         "Напиши свой вопрос, и я сделаю расклад ✨\n\n"
         "Пример вопросов:\n"
-        "1. Что меня ждет в будущем?\n"
-        "2. Какой выбор мне сделать?\n"
-        "3. Что мне делать в сложной ситуации?\n"
-        "Будь конкретным в вопросе!"
+        "1. Что меня ждёт в ближайшем будущем?\n"
+        "2. Какой путь мне выбрать?\n"
+        "3. Чего мне опасаться?\n"
+        "Будь конкретным в своём вопросе 🧘‍♀️"
     )
 
-# Функция обработки текстовых сообщений (ответ на вопрос)
+# Обработчик сообщений — делает расклад через OpenAI
 async def handle_message(update: Update, context):
     question = update.message.text
     try:
-        # Отправляем запрос к ChatGPT (OpenAI)
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Используем модель GPT-3.5
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Ты гадалка. Отвечай мистически, как будто делаешь расклад карт Таро."},
+                {"role": "system", "content": "Ты гадалка. Отвечай мистически, как будто делаешь расклад Таро."},
                 {"role": "user", "content": question}
             ],
             max_tokens=300
         )
-        answer = response['choices'][0]['message']['content'].strip()
+        answer = response.choices[0].message.content.strip()
         await update.message.reply_text(f"🔮 Ответ:\n{answer}")
     except Exception as e:
-        logger.error(f"Ошибка при запросе к OpenAI: {e}")
+        logger.error(f"Ошибка при обращении к OpenAI: {e}")
         await update.message.reply_text(f"❌ Ошибка:\n{e}")
 
-# Основная функция для настройки и запуска бота
+# Запуск приложения
 def main():
-    # Создаем приложение Telegram с токеном
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+    if not TELEGRAM_TOKEN or not os.getenv("OPENAI_API_KEY"):
+        raise Exception("❗ Не заданы переменные TELEGRAM_TOKEN или OPENAI_API_KEY")
 
-    # Обработчики команд
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("guess", guess))
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Обработчик всех текстовых сообщений (для вопросов)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("guess", guess))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Запуск бота
-    application.run_polling()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
