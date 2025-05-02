@@ -39,7 +39,7 @@ async def handle_message(update: Update, context):
     question = update.message.text
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Ты гадалка. Отвечай мистически, как будто делаешь расклад Таро."},
                 {"role": "user", "content": question}
